@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/nginx/conf.d
+        - name: symfony-app
+          mountPath: /var/www/html
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "300m"
+      volumes:
+      - name: config-volume
+        configMap:
+          name: nginx-configmap
+      - name: symfony-app
+        persistentVolumeClaim:
+          claimName: symfony-pvc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: php-fpm-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: php-fpm
+  template:
+    metadata:
+      labels:
+        app: php-fpm
+    spec:
+      containers:
+        - name: php-fpm
+          image: fpm-test
+          imagePullPolicy: Never
+          ports:
+          - containerPort: 9000
+          volumeMounts:
+          - name: symfony-app
+            mountPath: /var/www/html
+          resources:
+            limits:
+              memory: "128Mi"
+              cpu: "300m"
+      volumes:
+        - name: symfony-app
+          persistentVolumeClaim:
+            claimName: symfony-pvc
+        - name: php-config-volume
+          configMap:
+            name: php-configmap
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 5432
+        volumeMounts:
+        - mountPath: /var/lib/postgres/data
+          name: db-data
+        envFrom:
+        - configMapRef:
+            name: postgres-env
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: secrets
+              key: postgres_password
+      volumes:
+      - name: db-data
+        persistentVolumeClaim:
+          claimName: postgres-persistent-volume-claim

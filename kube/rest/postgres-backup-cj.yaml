@@ -1,0 +1,60 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+spec:
+  schedule: "0 18 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: postgres-backup
+              image: pg-backup
+              imagePullPolicy: Never
+              envFrom:
+              - configMapRef:
+                  name: postgres-env
+              args:
+              - /bin/bash
+              - /do_backup.sh
+              env:
+              - name: POSTGRES_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: secrets
+                    key: postgres_password
+              - name: AWS_ACCESS_KEY_ID
+                valueFrom:
+                  secretKeyRef:
+                    name: secrets
+                    key: aws_key_id
+              - name: AWS_SECRET_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: secrets
+                    key: aws_secret
+              - name: AWS_DEFAULT_REGION
+                valueFrom:
+                  secretKeyRef:
+                    name: secrets
+                    key: aws_region
+              - name: BACKUP_PATH
+                valueFrom:
+                  secretKeyRef:
+                    name: secrets
+                    key: aws_backup_path
+              - name: BACKUP_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: secrets
+                    key: backup_password
+              volumeMounts:
+              - mountPath: /var/backups
+                name: postgres-storage
+          restartPolicy: Never
+          volumes:
+          - name: postgres-storage
+            hostPath:
+              path: /var/volumes/postgres-backups
+              type: DirectoryOrCreate
